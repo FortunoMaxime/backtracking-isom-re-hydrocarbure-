@@ -1,3 +1,6 @@
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
 const form = document.getElementById('formula-form');
 const input = document.getElementById('formula');
 const statusEl = document.getElementById('status');
@@ -11,24 +14,6 @@ const canvasWrapper = document.getElementById('canvas-wrapper');
 let uniqueIsomers = [];
 let currentIndex = 0;
 let sceneState = null;
-let threeBundle = null;
-
-async function loadThreeBundle() {
-  if (threeBundle) return threeBundle;
-
-  try {
-    const THREE = await import('https://unpkg.com/three@0.160.0/build/three.module.js');
-    const controlsModule = await import(
-      'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js'
-    );
-    threeBundle = { THREE, OrbitControls: controlsModule.OrbitControls };
-    return threeBundle;
-  } catch (error) {
-    throw new Error(
-      "Impossible de charger Three.js. Vérifiez votre connexion internet puis rechargez la page."
-    );
-  }
-}
 
 function parseFormula(formula) {
   const match = formula.trim().toUpperCase().match(/^C(\d+)H(\d+)$/);
@@ -54,7 +39,7 @@ function parseFormula(formula) {
     throw new Error('Limite fixée à 9 carbones pour garder une génération interactive.');
   }
 
-  return { carbons };
+  return { carbons, hydrogens };
 }
 
 function allEdgePairs(n) {
@@ -135,6 +120,7 @@ function generateIsomerTrees(n) {
   };
 
   backtrack(0, 0);
+
   return Array.from(uniqueByCanonical.values());
 }
 
@@ -193,15 +179,7 @@ function buildAdjacency(n, edges) {
   return adjacency;
 }
 
-function clearRenderer() {
-  if (!sceneState) return;
-  sceneState.controls.dispose();
-  sceneState.renderer.dispose();
-  canvasWrapper.innerHTML = '';
-  sceneState = null;
-}
-
-function make3DLayout(n, edges, THREE) {
+function make3DLayout(n, edges) {
   const adjacency = buildAdjacency(n, edges);
   const level = Array.from({ length: n }, () => -1);
   const queue = [0];
@@ -237,10 +215,16 @@ function make3DLayout(n, edges, THREE) {
   return positions;
 }
 
-async function renderIsomer(isomer, index, total) {
-  clearRenderer();
+function clearRenderer() {
+  if (!sceneState) return;
+  sceneState.controls.dispose();
+  sceneState.renderer.dispose();
+  canvasWrapper.innerHTML = '';
+  sceneState = null;
+}
 
-  const { THREE, OrbitControls } = await loadThreeBundle();
+function renderIsomer(isomer, index, total) {
+  clearRenderer();
 
   const width = canvasWrapper.clientWidth;
   const height = canvasWrapper.clientHeight;
@@ -261,9 +245,11 @@ async function renderIsomer(isomer, index, total) {
   directional.position.set(4, 8, 6);
   scene.add(directional);
 
-  const points = make3DLayout(isomer.n, isomer.edges, THREE);
+  const points = make3DLayout(isomer.n, isomer.edges);
+
   const carbonMaterial = new THREE.MeshStandardMaterial({ color: '#2f81f7' });
   const carbonGeometry = new THREE.SphereGeometry(0.35, 24, 24);
+
   const bondMaterial = new THREE.MeshStandardMaterial({ color: '#8b949e' });
 
   for (const [a, b] of isomer.edges) {
@@ -286,7 +272,8 @@ async function renderIsomer(isomer, index, total) {
     scene.add(atom);
   });
 
-  scene.add(new THREE.AxesHelper(3));
+  const axes = new THREE.AxesHelper(3);
+  scene.add(axes);
 
   const animate = () => {
     if (!sceneState || sceneState.renderer !== renderer) return;
@@ -295,33 +282,21 @@ async function renderIsomer(isomer, index, total) {
     renderer.render(scene, camera);
   };
 
-  sceneState = { camera, renderer, controls };
+  sceneState = { scene, camera, renderer, controls };
   animate();
 
   isomerLabel.textContent = `Isomère ${index + 1} / ${total}`;
-}
-
-function renderAdjacency(isomer) {
   adjacencyEl.textContent = `Adjacence (carbones indexés de 1 à ${isomer.n})\n${isomer.edges
     .map(([a, b]) => `${a + 1} - ${b + 1}`)
     .join('\n')}`;
 }
 
-async function showCurrent() {
+function showCurrent() {
   if (!uniqueIsomers.length) return;
-  const isomer = uniqueIsomers[currentIndex];
-  renderAdjacency(isomer);
-
-  try {
-    await renderIsomer(isomer, currentIndex, uniqueIsomers.length);
-  } catch (error) {
-    clearRenderer();
-    isomerLabel.textContent = `Isomère ${currentIndex + 1} / ${uniqueIsomers.length}`;
-    statusEl.textContent = `${uniqueIsomers.length} isomère(s) trouvé(s), mais le rendu 3D a échoué: ${error.message}`;
-  }
+  renderIsomer(uniqueIsomers[currentIndex], currentIndex, uniqueIsomers.length);
 }
 
-form.addEventListener('submit', async (event) => {
+form.addEventListener('submit', (event) => {
   event.preventDefault();
   statusEl.textContent = '';
 
@@ -341,7 +316,7 @@ form.addEventListener('submit', async (event) => {
 
     viewerSection.classList.remove('hidden');
     statusEl.textContent = `${uniqueIsomers.length} isomère(s) unique(s) trouvé(s) pour C${carbons}H${2 * carbons + 2}.`;
-    await showCurrent();
+    showCurrent();
   } catch (error) {
     viewerSection.classList.add('hidden');
     clearRenderer();
@@ -349,16 +324,16 @@ form.addEventListener('submit', async (event) => {
   }
 });
 
-prevBtn.addEventListener('click', async () => {
+prevBtn.addEventListener('click', () => {
   if (!uniqueIsomers.length) return;
   currentIndex = (currentIndex - 1 + uniqueIsomers.length) % uniqueIsomers.length;
-  await showCurrent();
+  showCurrent();
 });
 
-nextBtn.addEventListener('click', async () => {
+nextBtn.addEventListener('click', () => {
   if (!uniqueIsomers.length) return;
   currentIndex = (currentIndex + 1) % uniqueIsomers.length;
-  await showCurrent();
+  showCurrent();
 });
 
 window.addEventListener('resize', () => {
