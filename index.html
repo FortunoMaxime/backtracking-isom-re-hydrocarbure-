@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Isomères d'hydrocarbures en 3D</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Visualiseur 3D d'isomères d'hydrocarbures</h1>
+      <p class="subtitle">
+        Entrez une formule brute d'alcane (ex: <code>C6H14</code>) pour générer toutes les
+        structures d'isomères de constitution via backtracking.
+      </p>
+
+      <form id="formula-form" class="controls">
+        <label for="formula">Formule</label>
+        <input id="formula" name="formula" type="text" placeholder="C6H14" required />
+        <button type="submit">Générer</button>
+      </form>
+
+      <section id="status" class="status"></section>
+
+      <section id="viewer-section" class="viewer-section hidden">
+        <div class="toolbar">
+          <button id="prev-btn" type="button">◀ Précédent</button>
+          <span id="isomer-label"></span>
+          <button id="next-btn" type="button">Suivant ▶</button>
+        </div>
+        <div id="canvas-wrapper" class="canvas-wrapper"></div>
+        <pre id="adjacency" class="adjacency"></pre>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
